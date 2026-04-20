@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+  <title>CipherPad</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      background-color: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      font-family: var(--vscode-editor-font-family, 'Menlo', 'Monaco', 'Courier New', monospace);
+      font-size: var(--vscode-editor-font-size, 14px);
+      line-height: var(--vscode-editor-line-height, 1.5);
+    }
+
+    /* ── Toolbar ──────────────────────────────────────────────── */
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-tab-inactiveBackground));
+      border-bottom: 1px solid var(--vscode-panel-border, #333);
+      flex-shrink: 0;
+    }
+
+    #toolbar .lock-icon {
+      font-size: 14px;
+      opacity: 0.7;
+    }
+
+    #toolbar .file-name {
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0.9;
+      flex: 1;
+    }
+
+    #toolbar .save-btn {
+      font-size: 11px;
+      padding: 3px 10px;
+      border: 1px solid var(--vscode-button-border, transparent);
+      border-radius: 3px;
+      background: var(--vscode-button-background, #0e639c);
+      color: var(--vscode-button-foreground, #fff);
+      cursor: pointer;
+      outline: none;
+      transition: background 0.1s;
+    }
+
+    #toolbar .save-btn:hover {
+      background: var(--vscode-button-hoverBackground, #1177bb);
+    }
+
+    #toolbar .save-btn:active {
+      opacity: 0.8;
+    }
+
+    #toolbar .save-btn:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    /* ── Editor Area ──────────────────────────────────────────── */
+    #editor-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #editor {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      padding: 16px 20px;
+      border: none;
+      resize: none;
+      background: var(--vscode-editor-background);
+      color: var(--vscode-editor-foreground);
+      font-family: inherit;
+      font-size: inherit;
+      line-height: inherit;
+      outline: none;
+      caret-color: var(--vscode-editorCursor-foreground, #aeafad);
+      tab-size: 4;
+      -moz-tab-size: 4;
+    }
+
+    #editor::placeholder {
+      color: var(--vscode-input-placeholderForeground, #555);
+      opacity: 0.6;
+    }
+
+    #editor:focus {
+      outline: none;
+    }
+
+    /* ── Loading Overlay ──────────────────────────────────────── */
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: var(--vscode-editor-background);
+      z-index: 10;
+    }
+
+    #loading.hidden {
+      display: none;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--vscode-editor-foreground);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      opacity: 0.4;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      font-size: 13px;
+      opacity: 0.6;
+    }
+
+    /* ── Status Bar ───────────────────────────────────────────── */
+    #statusbar {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-shrink: 0;
+      height: 22px;
+      background: var(--vscode-statusBar-background, #007acc);
+      color: var(--vscode-statusBar-foreground, #fff);
+      font-size: 11px;
+      font-family: var(--vscode-font-family, sans-serif);
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 0 10px;
+      height: 100%;
+      white-space: nowrap;
+      border-right: 1px solid rgba(255,255,255,0.15);
+    }
+
+    .status-item:last-child {
+      border-right: none;
+      margin-left: auto;
+    }
+
+    .status-icon {
+      opacity: 0.8;
+    }
+
+    #status-dirty {
+      color: #ffd700;
+      font-weight: bold;
+      display: none;
+    }
+
+    #status-dirty.visible {
+      display: inline;
+    }
+
+    /* ── Toast Notification ───────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 30px;
+      right: 16px;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: var(--vscode-font-family, sans-serif);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 100;
+      max-width: 300px;
+    }
+
+    #toast.show {
+      opacity: 1;
+    }
+
+    #toast.success {
+      background: var(--vscode-notificationsInfoIcon-foreground, #4e94ce);
+      color: #fff;
+    }
+
+    #toast.error {
+      background: var(--vscode-errorForeground, #f44747);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <span class="lock-icon">🔐</span>
+    <span class="file-name" id="file-name">Loading...</span>
+    <button class="save-btn" id="save-btn" disabled title="Save (Ctrl+S / Cmd+S)">
+      Save
+    </button>
+  </div>
+
+  <!-- Editor Container -->
+  <div id="editor-container">
+    <!-- Loading overlay -->
+    <div id="loading">
+      <div class="spinner"></div>
+      <div class="loading-text">Decrypting...</div>
+    </div>
+
+    <!-- The actual textarea -->
+    <textarea
+      id="editor"
+      spellcheck="false"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="off"
+      placeholder="Start typing your secret notes here...&#10;&#10;Press Ctrl+S (or Cmd+S on Mac) to save."
+    ></textarea>
+  </div>
+
+  <!-- Status Bar -->
+  <div id="statusbar">
+    <div class="status-item">
+      <span class="status-icon">🔒</span>
+      <span id="algo-display">AES-256-CBC</span>
+    </div>
+    <div class="status-item">
+      <span class="status-icon">📝</span>
+      <span id="char-count">0 chars</span>
+    </div>
+    <div class="status-item">
+      <span class="status-icon">🕐</span>
+      <span id="last-saved">Not saved yet</span>
+    </div>
+    <div class="status-item">
+      <span id="status-dirty">●&nbsp;Modified</span>
+      <span id="status-ready">CipherPad</span>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // VS Code API
+      const vscode = acquireVsCodeApi();
+
+      // DOM refs
+      const editor      = document.getElementById('editor');
+      const saveBtn     = document.getElementById('save-btn');
+      const loading     = document.getElementById('loading');
+      const fileName    = document.getElementById('file-name');
+      const algoDisplay = document.getElementById('algo-display');
+      const charCount   = document.getElementById('char-count');
+      const lastSaved   = document.getElementById('last-saved');
+      const statusDirty = document.getElementById('status-dirty');
+      const statusReady = document.getElementById('status-ready');
+      const toast       = document.getElementById('toast');
+
+      let isDirty = false;
+      let isSaving = false;
+      let toastTimer = null;
+
+      // ── Init state ──────────────────────────────────────────────────────────
+
+      function setLoading(show) {
+        loading.classList.toggle('hidden', !show);
+        editor.style.visibility = show ? 'hidden' : 'visible';
+        saveBtn.disabled = show;
+      }
+
+      function setContent(content, file, algo) {
+        editor.value = content || '';
+        updateCharCount();
+        if (file) fileName.textContent = file;
+        if (algo) algoDisplay.textContent = algo;
+        setLoading(false);
+        setDirty(false);
+        editor.focus();
+      }
+
+      // ── Dirty tracking ──────────────────────────────────────────────────────
+
+      function setDirty(dirty) {
+        isDirty = dirty;
+        statusDirty.classList.toggle('visible', dirty);
+        statusReady.textContent = dirty ? '' : 'CipherPad';
+        saveBtn.disabled = !dirty || isSaving;
+      }
+
+      // ── Char count ──────────────────────────────────────────────────────────
+
+      function updateCharCount() {
+        const len = editor.value.length;
+        const lines = editor.value.split('\n').length;
+        charCount.textContent = `${len.toLocaleString()} chars · ${lines} lines`;
+      }
+
+      // ── Save ────────────────────────────────────────────────────────────────
+
+      function save() {
+        if (!isDirty || isSaving) return;
+        isSaving = true;
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+        lastSaved.textContent = 'Saving...';
+
+        vscode.postMessage({
+          type: 'save',
+          content: editor.value
+        });
+      }
+
+      // ── Toast notifications ─────────────────────────────────────────────────
+
+      function showToast(msg, type = 'success', durationMs = 2500) {
+        if (toastTimer) clearTimeout(toastTimer);
+        toast.textContent = msg;
+        toast.className = 'show ' + type;
+        toastTimer = setTimeout(() => {
+          toast.className = '';
+        }, durationMs);
+      }
+
+      // ── Event listeners ─────────────────────────────────────────────────────
+
+      editor.addEventListener('input', () => {
+        updateCharCount();
+        if (!isDirty) setDirty(true);
+      });
+
+      // Tab key inserts spaces instead of shifting focus
+      editor.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          const start = editor.selectionStart;
+          const end   = editor.selectionEnd;
+          editor.value = editor.value.substring(0, start) + '    ' + editor.value.substring(end);
+          editor.selectionStart = editor.selectionEnd = start + 4;
+          updateCharCount();
+          if (!isDirty) setDirty(true);
+        }
+      });
+
+      // Ctrl+S / Cmd+S
+      document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+          e.preventDefault();
+          save();
+        }
+      });
+
+      saveBtn.addEventListener('click', () => {
+        save();
+      });
+
+      // ── Messages from extension ─────────────────────────────────────────────
+
+      window.addEventListener('message', (event) => {
+        const msg = event.data;
+
+        switch (msg.type) {
+          case 'init':
+            setContent(msg.content, msg.fileName, msg.algorithm);
+            break;
+
+          case 'saveSuccess': {
+            isSaving = false;
+            saveBtn.textContent = 'Save';
+            setDirty(false);
+
+            const savedTime = msg.savedAt
+              ? new Date(msg.savedAt).toLocaleTimeString()
+              : new Date().toLocaleTimeString();
+            lastSaved.textContent = 'Saved at ' + savedTime;
+
+            showToast('✓ Saved & encrypted', 'success');
+            break;
+          }
+
+          case 'saveError':
+            isSaving = false;
+            saveBtn.textContent = 'Save';
+            saveBtn.disabled = false;
+            lastSaved.textContent = 'Save failed!';
+            showToast('✗ Save failed: ' + (msg.message || 'Unknown error'), 'error', 4000);
+            setDirty(true); // still dirty
+            break;
+
+          case 'locked':
+            // Extension signals that the file should be locked (e.g., session timeout)
+            editor.value = '';
+            setContent('', msg.fileName, null);
+            setLoading(true);
+            showToast('File locked — re-open to decrypt', 'error', 5000);
+            break;
+        }
+      });
+
+      // ── Restore state from VS Code (survives panel hide/show) ───────────────
+      const previousState = vscode.getState();
+      if (previousState && previousState.content !== undefined) {
+        // Panel was restored from hidden state — request fresh content
+        vscode.postMessage({ type: 'requestContent' });
+      }
+
+      // Save state for panel restoration
+      editor.addEventListener('input', () => {
+        vscode.setState({ content: editor.value });
+      });
+
+    })();
+  </script>
+</body>
+</html>

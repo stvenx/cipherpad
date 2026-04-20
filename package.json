@@ -1,0 +1,68 @@
+{
+  "name": "cipherpad",
+  "displayName": "CipherPad",
+  "description": "Transparent encryption editor for VS Code — edit plaintext, save ciphertext",
+  "version": "0.1.0",
+  "publisher": "stvenx",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stvenx/cipherpad"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "keywords": ["encryption", "security", "AES", "cipher", "secret", "privacy"],
+  "icon": "media/icon.png",
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "cipherpad.editor",
+        "displayName": "CipherPad Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.ctxt"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "cipherpad.changePassword",
+        "title": "CipherPad: Change Password"
+      },
+      {
+        "command": "cipherpad.showHistory",
+        "title": "CipherPad: Show History"
+      },
+      {
+        "command": "cipherpad.restoreHistory",
+        "title": "CipherPad: Restore from History"
+      },
+      {
+        "command": "cipherpad.exportPlaintext",
+        "title": "CipherPad: Export Plaintext"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0"
+  }
+}
