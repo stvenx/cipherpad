@@ -23,7 +23,7 @@
 import * as vscode from 'vscode';
 import { CRYPTO_ALGORITHM, CRYPTO_ITERATIONS, CRYPTO_KDF } from './crypto';
 
-export const MAX_HISTORY = 3;
+export const MAX_HISTORY = 4;
 export const CTXT_VERSION = 1;
 
 export interface HistoryEntry {
