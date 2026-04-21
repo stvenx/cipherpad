@@ -133,4 +133,4 @@ print(result.stdout.decode(), end="")
 
 ## License
 
-MIT © 2024 stvenx
+MIT

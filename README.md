@@ -201,4 +201,4 @@ The security properties are equivalent; the decryption is just a two-step proces
 
 ## License
 
-MIT © 2024 stvenx
+MIT

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="lock" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#e94560"/>
+      <stop offset="100%" style="stop-color:#c23152"/>
+    </linearGradient>
+    <linearGradient id="doc" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f3460"/>
+      <stop offset="100%" style="stop-color:#533483"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded rect -->
+  <rect x="0" y="0" width="256" height="256" rx="48" ry="48" fill="url(#bg)"/>
+
+  <!-- Document body -->
+  <rect x="55" y="50" width="120" height="156" rx="8" ry="8" fill="url(#doc)" opacity="0.9"/>
+  <!-- Document fold corner -->
+  <path d="M145 50 L175 80 L145 80 Z" fill="#0a2647"/>
+  <rect x="145" y="50" width="30" height="30" rx="0" fill="#1a4a7a" opacity="0.5"/>
+  <path d="M145 50 L175 80 L145 80 Z" fill="#0a2647" opacity="0.7"/>
+
+  <!-- Text lines on document -->
+  <rect x="75" y="95" width="70" height="4" rx="2" fill="#e94560" opacity="0.5"/>
+  <rect x="75" y="110" width="55" height="4" rx="2" fill="#e94560" opacity="0.35"/>
+  <rect x="75" y="125" width="65" height="4" rx="2" fill="#e94560" opacity="0.35"/>
+  <rect x="75" y="140" width="45" height="4" rx="2" fill="#e94560" opacity="0.35"/>
+
+  <!-- Lock body -->
+  <rect x="130" y="148" width="76" height="58" rx="10" ry="10" fill="url(#lock)"/>
+
+  <!-- Lock shackle -->
+  <path d="M148 148 L148 128 C148 108 188 108 188 128 L188 148"
+        fill="none" stroke="#e94560" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Keyhole -->
+  <circle cx="168" cy="172" r="9" fill="#1a1a2e"/>
+  <rect x="165" y="178" width="6" height="14" rx="3" fill="#1a1a2e"/>
+</svg>
