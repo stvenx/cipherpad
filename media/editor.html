@@ -230,6 +230,9 @@
   <div id="toolbar">
     <span class="lock-icon">🔐</span>
     <span class="file-name" id="file-name">Loading...</span>
+    <button class="save-btn" id="history-btn" title="Restore from History">
+      History
+    </button>
     <button class="save-btn" id="save-btn" disabled title="Save (Ctrl+S / Cmd+S)">
       Save
     </button>
@@ -287,6 +290,7 @@
       // DOM refs
       const editor      = document.getElementById('editor');
       const saveBtn     = document.getElementById('save-btn');
+      const historyBtn  = document.getElementById('history-btn');
       const loading     = document.getElementById('loading');
       const fileName    = document.getElementById('file-name');
       const algoDisplay = document.getElementById('algo-display');
@@ -391,6 +395,10 @@
 
       saveBtn.addEventListener('click', () => {
         save();
+      });
+
+      historyBtn.addEventListener('click', () => {
+        vscode.postMessage({ type: 'restoreHistory' });
       });
 
       // ── Messages from extension ─────────────────────────────────────────────

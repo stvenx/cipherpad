@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import {
   readCtxtFile,
   writeCtxtFile,
+  parseCtxtData,
   isExistingFile,
   getLatestEntry,
   prependHistoryEntry,
@@ -109,6 +110,14 @@ export class CipherPadEditorProvider implements vscode.CustomTextEditorProvider 
             content: plaintext,
             fileName: path.basename(uri.fsPath),
             algorithm: 'AES-256-CBC'
+          });
+          break;
+
+        case 'restoreHistory':
+          await this.handleRestoreHistory(uri, document, webviewPanel, (restoredPlaintext) => {
+            plaintext = restoredPlaintext;
+            isSelfWrite = true;
+            setTimeout(() => { isSelfWrite = false; }, 1000);
           });
           break;
       }
@@ -224,6 +233,107 @@ export class CipherPadEditorProvider implements vscode.CustomTextEditorProvider 
   }
 
   /**
+   * Handle restore-from-history request from WebView.
+   * Shows a QuickPick, decrypts the selected snapshot, writes to disk, and updates the editor.
+   */
+  private async handleRestoreHistory(
+    uri: vscode.Uri,
+    document: vscode.TextDocument,
+    webviewPanel: vscode.WebviewPanel,
+    onRestored: (plaintext: string) => void
+  ): Promise<void> {
+    const ctxtData = parseCtxtData(Buffer.from(document.getText(), 'utf8'));
+
+    if (ctxtData.history.length <= 1) {
+      vscode.window.showInformationMessage('CipherPad: No older snapshots to restore.');
+      return;
+    }
+
+    const password = passwordManager.get(uri.toString());
+    if (!password) {
+      vscode.window.showErrorMessage('CipherPad: No password found. Cannot restore.');
+      return;
+    }
+
+    // Build QuickPick items (skip index 0 = current)
+    const items = ctxtData.history.slice(1).map((entry, index) => {
+      const date = new Date(entry.savedAt);
+      return {
+        label: `$(history) Snapshot ${index + 1} — ${date.toLocaleString(undefined, {
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit'
+        })}`,
+        description: entry.hint || '',
+        detail: `Saved: ${date.toLocaleString()}`,
+        entry
+      };
+    });
+
+    const selected = await vscode.window.showQuickPick(items, {
+      placeHolder: 'Select a snapshot to restore',
+      title: `Restore History — ${path.basename(uri.fsPath)}`
+    });
+
+    if (!selected) {
+      return;
+    }
+
+    // Decrypt the selected snapshot
+    let restoredPlaintext: string;
+    try {
+      restoredPlaintext = await decrypt(
+        selected.entry.ciphertext,
+        selected.entry.salt,
+        selected.entry.iv,
+        password
+      );
+    } catch {
+      vscode.window.showErrorMessage('CipherPad: Failed to decrypt snapshot.');
+      return;
+    }
+
+    // Re-encrypt and save as new latest entry
+    try {
+      const encResult = await encrypt(restoredPlaintext, password);
+      const newEntry: HistoryEntry = {
+        salt: encResult.salt,
+        iv: encResult.iv,
+        ciphertext: encResult.ciphertext,
+        savedAt: new Date().toISOString(),
+        hint: ''
+      };
+
+      const updatedData = prependHistoryEntry(ctxtData, newEntry);
+
+      // Update TextDocument first, then let VS Code write to disk
+      const fullRange = new vscode.Range(
+        document.positionAt(0),
+        document.positionAt(document.getText().length)
+      );
+      const wsEdit = new vscode.WorkspaceEdit();
+      wsEdit.replace(document.uri, fullRange, JSON.stringify(updatedData, null, 2));
+      await vscode.workspace.applyEdit(wsEdit);
+      await document.save();
+
+      // Update closure state
+      onRestored(restoredPlaintext);
+
+      // Send restored content to WebView
+      webviewPanel.webview.postMessage({
+        type: 'init',
+        content: restoredPlaintext,
+        fileName: path.basename(uri.fsPath),
+        algorithm: 'AES-256-CBC'
+      });
+
+      vscode.window.showInformationMessage('CipherPad: Snapshot restored successfully.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      vscode.window.showErrorMessage(`CipherPad: Restore failed — ${msg}`);
+    }
+  }
+
+  /**
    * Encrypt the given plaintext and write it to the .ctxt file on disk.
    */
   private async saveDocument(
@@ -240,7 +350,8 @@ export class CipherPadEditorProvider implements vscode.CustomTextEditorProvider 
 
     try {
       const encResult = await encrypt(content, password);
-      const ctxtData = await readCtxtFile(uri);
+      // Read from TextDocument (always in sync) instead of disk to avoid race conditions
+      const ctxtData = parseCtxtData(Buffer.from(document.getText(), 'utf8'));
 
       const newEntry: HistoryEntry = {
         salt: encResult.salt,
@@ -251,10 +362,9 @@ export class CipherPadEditorProvider implements vscode.CustomTextEditorProvider 
       };
 
       const updatedData = prependHistoryEntry(ctxtData, newEntry);
-      await writeCtxtFile(uri, updatedData);
 
-      // Sync VS Code's TextDocument with disk content so that
-      // VS Code's native Cmd+S won't overwrite with stale data
+      // Update TextDocument first, then let VS Code write to disk
+      // (avoids "content of the file is newer" conflict)
       const fullRange = new vscode.Range(
         document.positionAt(0),
         document.positionAt(document.getText().length)
